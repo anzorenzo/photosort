@@ -85,12 +85,12 @@
     /* Drop zone — centered by parent, animates out when folder loaded */
     .dz-wrap { display: flex; flex-direction: column; align-items: center; gap: 20px; width: 100%; max-width: 520px; max-height: 400px; overflow: hidden; transition: max-height 500ms cubic-bezier(0.4,0,0.2,1), opacity 300ms ease, padding 500ms cubic-bezier(0.4,0,0.2,1), gap 500ms; }
     .dz-wrap.collapsed { max-height: 0; opacity: 0; gap: 0; padding: 0; pointer-events: none; }
-    .drop-zone { border: 1.5px dashed var(--border2); border-radius: var(--radius); padding: 2.5rem 2rem; text-align: center; background: var(--surface); width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 180px; transition: background 0.15s, border-color 0.15s; }
+    .drop-zone { border: 1.5px dashed var(--border2); border-radius: var(--radius); padding: 2.5rem 2rem; text-align: center; background: var(--surface); width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 180px; transition: background 0.15s, border-color 0.15s; -webkit-app-region: no-drag; }
     .drop-zone:hover, .drop-zone.drag-over { background: var(--blue-bg); border-color: var(--blue); }
     .dz-icon { opacity: 0.22; margin-bottom: 12px; }
-    .dz-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
-    .dz-sub { font-size: 13px; color: var(--text2); }
-    .dz-sub .link { color: var(--blue); text-decoration: underline; text-underline-offset: 2px; }
+    .dz-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; -webkit-app-region: no-drag; }
+    .dz-sub { font-size: 13px; color: var(--text2); -webkit-app-region: no-drag; }
+    .dz-sub .link { color: var(--blue); text-decoration: underline; text-underline-offset: 2px; -webkit-app-region: no-drag; }
 
     /* Content — hidden until folder loaded, then fills screen */
     .sort-content { display: none; flex: 1; overflow-y: auto; padding: 20px 24px; flex-direction: column; gap: 14px; min-height: 0; }
@@ -173,9 +173,9 @@
     .rv-size-btn.active { background: rgba(255,255,255,0.22); color: white; }
 
     /* Single view wrapper — below topbar */
-    #rv-single-wrap { position: absolute; top: 32px; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: #080808; overflow: hidden; }
-    #rv-img { max-width: 100%; max-height: 100%; object-fit: contain; display: none; pointer-events: none; grid-area: 1/1; }
-    #rv-vid { max-width: 100%; max-height: 100%; display: none; grid-area: 1/1; }
+    #rv-single-wrap { position: absolute; top: 32px; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: #080808; overflow: hidden; touch-action: none; }
+    #rv-img { max-width: 100%; max-height: 100%; object-fit: contain; display: none; pointer-events: none; }
+    #rv-vid { max-width: 100%; max-height: 100%; display: none; }
 
     /* Nav arrows */
     #rv-nav-l, #rv-nav-r { position: absolute; top: 50%; transform: translateY(-50%); z-index: 10; width: 36px; height: 36px; background: rgba(18,18,16,0.55); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 50%; color: rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: background 0.15s; }

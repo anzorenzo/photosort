@@ -214,7 +214,8 @@ async function processFile(f,liveMap,used,isArch) {
   if(isShot){
     badge='screenshot'
     folder='Screenshots'
-    newName=hasExif && isArch ? dedup(used,folder,fmtDate(dateMs),f.ext) : f.name
+    const shotFormat = isArch ? catalogueFormat : 'YYYY-MM-DD HH.MM.SS'
+    newName = dedup(used, folder, fmtDate(dateMs, shotFormat), f.ext)
   }
   else if(needsReview){badge='review';folder=isArch?'Review':`${year}/Review`;newName=dedup(used,folder,fmtDate(dateMs),f.ext)}
   else if(isLive){badge='live';folder=`${year}`;newName=dedup(used,folder,fmtDate(dateMs),f.ext)}
@@ -722,6 +723,57 @@ reviewWrap.addEventListener('wheel', e => {
   reviewZoom = Math.max(0.5, Math.min(5, +(reviewZoom + delta).toFixed(2)))
   applyReviewZoom()
 }, { passive: false })
+
+const activePointers = new Map()
+let pinchStartDistance = null
+let pinchStartZoom = 1
+
+function pointerDistance(a, b) {
+  const dx = a.clientX - b.clientX
+  const dy = a.clientY - b.clientY
+  return Math.hypot(dx, dy)
+}
+
+function resetPinchState() {
+  pinchStartDistance = null
+  pinchStartZoom = reviewZoom
+}
+
+reviewWrap.addEventListener('pointerdown', e => {
+  if (reviewMode !== 'single') return
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY })
+  reviewWrap.setPointerCapture(e.pointerId)
+  if (activePointers.size === 2) {
+    const [a, b] = [...activePointers.values()]
+    pinchStartDistance = pointerDistance(a, b)
+    pinchStartZoom = reviewZoom
+  }
+})
+
+reviewWrap.addEventListener('pointermove', e => {
+  if (reviewMode !== 'single') return
+  if (!activePointers.has(e.pointerId)) return
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY })
+  if (activePointers.size < 2 || pinchStartDistance === null) return
+
+  const [a, b] = [...activePointers.values()]
+  const currentDistance = pointerDistance(a, b)
+  if (!currentDistance || !pinchStartDistance) return
+
+  const scale = currentDistance / pinchStartDistance
+  reviewZoom = Math.max(0.5, Math.min(5, +(pinchStartZoom * scale).toFixed(2)))
+  applyReviewZoom()
+})
+
+function handlePointerEnd(e) {
+  if (activePointers.has(e.pointerId)) activePointers.delete(e.pointerId)
+  if (activePointers.size < 2) resetPinchState()
+  try { reviewWrap.releasePointerCapture(e.pointerId) } catch (_) {}
+}
+
+reviewWrap.addEventListener('pointerup', handlePointerEnd)
+reviewWrap.addEventListener('pointercancel', handlePointerEnd)
+reviewWrap.addEventListener('pointerleave', handlePointerEnd)
 
 document.addEventListener('keydown',async e=>{
   const inReview=currentScreen==='review'
