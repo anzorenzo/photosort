@@ -214,7 +214,8 @@ async function processFile(f,liveMap,used,isArch) {
   if(isShot){
     badge='screenshot'
     folder='Screenshots'
-    newName=hasExif && isArch ? dedup(used,folder,fmtDate(dateMs),f.ext) : f.name
+    const shotFormat = isArch ? catalogueFormat : 'YYYY-MM-DD HH.MM.SS'
+    newName = dedup(used, folder, fmtDate(dateMs, shotFormat), f.ext)
   }
   else if(needsReview){badge='review';folder=isArch?'Review':`${year}/Review`;newName=dedup(used,folder,fmtDate(dateMs),f.ext)}
   else if(isLive){badge='live';folder=`${year}`;newName=dedup(used,folder,fmtDate(dateMs),f.ext)}
