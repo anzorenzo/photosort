@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PhotoSort</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f4f3f0; --surface: #ffffff; --surface2: #f0efe9; --surface3: #e8e7e2;
+      --text: #1a1a18; --text2: #6b6b67; --text3: #b0afa9;
+      --border: rgba(0,0,0,0.08); --border2: rgba(0,0,0,0.14);
+      --accent: #1a1a18; --accent-fg: #ffffff;
+      --blue: #3b7fe8; --blue-bg: #e8f0fc; --blue-text: #1a4fa3;
+      --green-bg: #dff0df; --green-text: #2a5e2a;
+      --amber-bg: #fdf0d8; --amber-text: #8a5c00;
+      --red: #c83232; --red-bg: #fceaea; --red-text: #a32020;
+      --gray-bg: #f0efe9; --gray-text: #6b6b67;
+      --sidebar-w: 200px; --radius: 12px; --radius-sm: 8px; --radius-xs: 5px;
+    }
+    html.dark {
+      --bg: #141412; --surface: #1e1e1c; --surface2: #252523; --surface3: #2e2e2b;
+      --text: #f0efe8; --text2: #8a8a85; --text3: #555552;
+      --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.13);
+      --accent: #f0efe8; --accent-fg: #141412;
+      --blue: #5a9cf8; --blue-bg: #0e1f3d; --blue-text: #85b7eb;
+      --green-bg: #0e2010; --green-text: #7ec87e;
+      --amber-bg: #251800; --amber-text: #e8a43a;
+      --red-bg: #280a0a; --red-text: #e87070;
+      --gray-bg: #252523; --gray-text: #8a8a85;
+    }
+    body { font-family: -apple-system,'Segoe UI',system-ui,sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; height: 100vh; max-height: 100vh; display: flex; overflow: hidden !important; cursor: default; position: fixed; width: 100vw; }
+    html { overflow: hidden !important; height: 100vh; max-height: 100vh; }
+    button { cursor: pointer; font-family: inherit; }
+    [contenteditable] { cursor: text; }
+    .link { cursor: pointer; }
+
+    /* WIN CONTROLS — Windows-native style, flush top-right */
+    #win-controls { position: fixed; top: 0; right: 0; z-index: 99999; display: flex; -webkit-app-region: no-drag; }
+    .win-btn { width: 46px; height: 32px; border: none; background: transparent; color: var(--text2); display: flex; align-items: center; justify-content: center; -webkit-app-region: no-drag; transition: background 0.1s, color 0.1s; padding: 0; }
+    .win-btn svg { pointer-events: none; }
+    .win-btn:hover { background: var(--surface3); color: var(--text); }
+    .win-btn.close:hover { background: #e81123; color: white; }
+
+    /* SIDEBAR */
+    #sidebar { width: var(--sidebar-w); background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; -webkit-app-region: drag; }
+    #sidebar-logo { padding: 18px 16px 12px; display: flex; align-items: center; gap: 9px; }
+    #sidebar-logo span { font-size: 14px; font-weight: 600; letter-spacing: -0.3px; }
+    #sidebar-nav { flex: 1; padding: 4px 10px; display: flex; flex-direction: column; gap: 1px; -webkit-app-region: no-drag; overflow-y: auto; }
+    .nav-label { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.6px; padding: 10px 6px 3px; }
+    .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: var(--radius-xs); font-size: 13px; color: var(--text2); border: none; background: none; width: 100%; text-align: left; -webkit-app-region: no-drag; transition: background 0.15s, color 0.15s; }
+    .nav-item > * { pointer-events: none; }
+    .nav-item svg { opacity: 0.5; flex-shrink: 0; transition: opacity 0.15s; }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item:hover svg, .nav-item.active svg { opacity: 1; }
+    .nav-item.active { background: var(--accent); color: var(--accent-fg); }
+    .nav-divider { height: 0.5px; background: var(--border); margin: 6px 6px; }
+
+    /* CONTENT */
+    #content { flex: 1; position: relative; overflow: hidden; min-height: 0; }
+    #content.review-active { background: #080808; }
+    /* Permanent drag bar — always at top, stops before win buttons */
+    #drag-bar { position: absolute; top: 0; left: 0; right: 138px; height: 32px; -webkit-app-region: drag; z-index: 999; background: var(--bg); }
+    #content.review-active #drag-bar { background: #080808; }
+    .screen { position: absolute; top: 32px; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; opacity: 0; transform: translateY(14px); pointer-events: none; transition: opacity 500ms cubic-bezier(0.4,0,0.2,1), transform 500ms cubic-bezier(0.4,0,0.2,1); }
+    .screen.active { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .screen.exit { opacity: 0; transform: translateY(-14px); pointer-events: none; }
+
+    /* HOME */
+    #home-screen { align-items: center; justify-content: center; gap: 28px; padding: 48px; text-align: center; }
+    #home-screen h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.5px; }
+    #home-screen > p { font-size: 14px; color: var(--text2); max-width: 360px; line-height: 1.7; }
+    #home-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; width: 100%; max-width: 640px; }
+    .home-card { background: var(--surface); border-radius: var(--radius); padding: 28px 20px 24px; border: 1.5px solid var(--border); transition: border-color 0.2s, box-shadow 0.4s, transform 0.4s; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
+    .home-card > * { pointer-events: none; }
+    .home-card:hover { border-color: var(--border2); box-shadow: 0 4px 20px rgba(0,0,0,0.08); transform: translateY(-3px); }
+    .home-card-icon { width: 48px; height: 48px; border-radius: 13px; display: flex; align-items: center; justify-content: center; }
+    .home-card h2 { font-size: 14px; font-weight: 600; }
+    .home-card p { font-size: 12px; color: var(--text2); line-height: 1.6; }
+
+    /* SORT LAYOUT — before folder: centered like home. After folder: column layout */
+    .sort-screen { align-items: center; justify-content: center; gap: 20px; padding: 48px; text-align: center; }
+    .sort-screen.has-content { align-items: stretch; justify-content: flex-start; padding: 0; text-align: left; }
+    .sort-title { font-size: 16px; font-weight: 600; color: var(--text2); letter-spacing: -0.2px; padding: 4px 20px; }
+
+    /* Drop zone — centered by parent, animates out when folder loaded */
+    .dz-wrap { display: flex; flex-direction: column; align-items: center; gap: 20px; width: 100%; max-width: 520px; max-height: 400px; overflow: hidden; transition: max-height 500ms cubic-bezier(0.4,0,0.2,1), opacity 300ms ease, padding 500ms cubic-bezier(0.4,0,0.2,1), gap 500ms; }
+    .dz-wrap.collapsed { max-height: 0; opacity: 0; gap: 0; padding: 0; pointer-events: none; }
+    .drop-zone { border: 1.5px dashed var(--border2); border-radius: var(--radius); padding: 2.5rem 2rem; text-align: center; background: var(--surface); width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 180px; transition: background 0.15s, border-color 0.15s; }
+    .drop-zone:hover, .drop-zone.drag-over { background: var(--blue-bg); border-color: var(--blue); }
+    .dz-icon { opacity: 0.22; margin-bottom: 12px; }
+    .dz-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+    .dz-sub { font-size: 13px; color: var(--text2); }
+    .dz-sub .link { color: var(--blue); text-decoration: underline; text-underline-offset: 2px; }
+
+    /* Content — hidden until folder loaded, then fills screen */
+    .sort-content { display: none; flex: 1; overflow-y: auto; padding: 20px 24px; flex-direction: column; gap: 14px; min-height: 0; }
+    .sort-content.visible { display: flex; }
+    .sort-content-title { font-size: 15px; font-weight: 600; flex-shrink: 0; padding-top: 2px; }
+
+    .stats-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; flex-shrink: 0; }
+    .stat-card { background: var(--surface); border-radius: var(--radius-xs); padding: 11px 13px; border: 0.5px solid var(--border); }
+    .stat-label { font-size: 10px; color: var(--text2); margin-bottom: 2px; }
+    .stat-val { font-size: 20px; font-weight: 600; }
+
+    .analyzing-wrap { display: none; text-align: center; padding: 20px; color: var(--text2); font-size: 13px; flex-shrink: 0; }
+    .analyzing-bar-bg { width: 160px; height: 3px; background: var(--surface2); border-radius: 2px; margin: 8px auto 0; overflow: hidden; }
+    .analyzing-bar { height: 3px; background: var(--accent); border-radius: 2px; width: 0%; transition: width 0.1s; }
+
+    /* Post-analyze elements slide in after analysis */
+    .post-analyze { opacity: 0; transform: translateY(10px); transition: opacity 500ms ease, transform 500ms cubic-bezier(0.4,0,0.2,1); pointer-events: none; }
+    .post-analyze.revealed { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+    .file-list-wrap { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .list-header { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.3fr) 110px 80px; gap: 10px; padding: 6px 14px; font-size: 10px; color: var(--text3); border-bottom: 0.5px solid var(--border); background: var(--surface2); text-transform: uppercase; letter-spacing: 0.4px; flex-shrink: 0; }
+    .list-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+    .file-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.3fr) 110px 80px; align-items: center; gap: 10px; padding: 7px 14px; border-bottom: 0.5px solid var(--border); font-size: 12px; }
+    .file-row:last-child { border-bottom: none; }
+    .f-orig { color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .f-new { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .f-dest { font-size: 11px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .badge { font-size: 10px; padding: 2px 7px; border-radius: 20px; white-space: nowrap; display: inline-block; font-weight: 500; }
+    .badge-photo { background: var(--green-bg); color: var(--green-text); }
+    .badge-video { background: var(--blue-bg); color: var(--blue-text); }
+    .badge-screenshot { background: var(--amber-bg); color: var(--amber-text); }
+    .badge-live { background: var(--gray-bg); color: var(--gray-text); border: 0.5px solid var(--border2); }
+    .badge-unsorted { background: var(--gray-bg); color: var(--gray-text); }
+    .badge-review { background: var(--red-bg); color: var(--red-text); }
+
+    .output-row { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+    .output-path { flex: 1; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-xs); padding: 8px 12px; font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn-sm { background: var(--surface); border: 0.5px solid var(--border2); border-radius: var(--radius-xs); padding: 8px 14px; font-size: 12px; color: var(--text); white-space: nowrap; transition: background 0.15s; }
+    .btn-sm:hover { background: var(--surface2); }
+
+    /* Sort actions */
+    .sort-actions { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 4px 0; }
+    .sort-done-label { font-size: 13px; font-weight: 500; color: var(--green-text); white-space: nowrap; opacity: 0; transform: translateX(20px); transition: opacity 400ms ease, transform 400ms cubic-bezier(0.34,1.4,0.64,1); }
+    .sort-done-label.visible { opacity: 1; transform: translateX(0); }
+    .btn-primary { background: var(--accent); color: var(--accent-fg); border: none; border-radius: var(--radius-xs); padding: 10px 26px; font-size: 13px; font-weight: 500; white-space: nowrap; transition: opacity 0.15s, background 0.4s, color 0.4s; }
+    .btn-primary:disabled { opacity: 0.35; cursor: default; }
+    .btn-primary:hover:not(:disabled) { opacity: 0.85; }
+
+    /* FOLDER PICKER */
+    #folder-picker-screen { align-items: center; justify-content: center; }
+    .fp-inner { display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center; padding: 48px 40px; width: 100%; max-width: 620px; }
+    .fp-inner h2 { font-size: 22px; font-weight: 600; }
+    .fp-inner > p { font-size: 13px; color: var(--text2); max-width: 380px; line-height: 1.6; }
+    #folder-list { display: grid; grid-template-columns: repeat(auto-fill,minmax(140px,1fr)); gap: 10px; width: 100%; }
+    .folder-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-sm); padding: 16px; transition: background 0.15s, border-color 0.15s, transform 0.3s; text-align: left; }
+    .folder-card > * { pointer-events: none; }
+    .folder-card:hover { background: var(--blue-bg); border-color: var(--blue); transform: translateY(-2px); }
+    .folder-card-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+    .folder-card-count { font-size: 12px; color: var(--text2); }
+
+    /* ═══════════════════════════════════════════════════
+       REVIEW SCREEN — a .screen with display:block override
+       Topbar at 32px (below drag strip), content fills rest
+       ═══════════════════════════════════════════════════ */
+    #review-screen { background: #080808; display: none !important; overflow: hidden !important; }
+    #review-screen.active { display: block !important; opacity: 1; transform: none; pointer-events: auto; }
+
+    /* Review toolbar — pinned at top of review screen (below the permanent drag bar) */
+    #rv-topbar { position: absolute; top: 0; left: 0; right: 0; height: 32px; z-index: 20; padding: 0 12px; display: flex; align-items: center; gap: 8px; background: rgba(8,8,8,0.95); border-bottom: 0.5px solid rgba(255,255,255,0.06); }
+
+    .rv-btn { background: rgba(255,255,255,0.1); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 5px; padding: 3px 10px; font-size: 11px; color: rgba(255,255,255,0.7); transition: background 0.12s, color 0.12s; white-space: nowrap; cursor: pointer; }
+    .rv-btn:hover { background: rgba(255,255,255,0.18); color: rgba(255,255,255,0.95); }
+    .rv-btn.active-view { background: rgba(255,255,255,0.22); color: white; }
+    .rv-spacer { flex: 1; }
+    .rv-label { font-size: 11px; color: rgba(255,255,255,0.3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rv-counter { font-size: 11px; color: rgba(255,255,255,0.3); flex-shrink: 0; }
+    .rv-size-btns { display: flex; gap: 2px; }
+    .rv-size-btn { background: rgba(255,255,255,0.08); border: none; border-radius: 3px; padding: 2px 7px; font-size: 10px; color: rgba(255,255,255,0.45); transition: background 0.12s; cursor: pointer; }
+    .rv-size-btn:hover { background: rgba(255,255,255,0.16); color: rgba(255,255,255,0.8); }
+    .rv-size-btn.active { background: rgba(255,255,255,0.22); color: white; }
+
+    /* Single view wrapper — below topbar */
+    #rv-single-wrap { position: absolute; top: 32px; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: #080808; overflow: hidden; }
+    #rv-img { max-width: 100%; max-height: 100%; object-fit: contain; display: none; pointer-events: none; grid-area: 1/1; }
+    #rv-vid { max-width: 100%; max-height: 100%; display: none; grid-area: 1/1; }
+
+    /* Nav arrows */
+    #rv-nav-l, #rv-nav-r { position: absolute; top: 50%; transform: translateY(-50%); z-index: 10; width: 36px; height: 36px; background: rgba(18,18,16,0.55); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 50%; color: rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: background 0.15s; }
+    #rv-nav-l > *, #rv-nav-r > * { pointer-events: none; }
+    #rv-nav-l:hover, #rv-nav-r:hover { background: rgba(50,50,48,0.8); color: white; }
+    #rv-nav-l { left: 14px; }
+    #rv-nav-r { right: 14px; }
+
+    /* Grid */
+    #rv-grid-wrap { position: absolute; top: 32px; left: 0; right: 0; bottom: 0; overflow-y: auto; padding: 12px; display: none; }
+    #rv-grid-wrap::-webkit-scrollbar { width: 5px; }
+    #rv-grid-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+    #rv-grid-wrap.show { display: block; }
+    .rv-grid { display: grid; gap: 3px; }
+    .rv-grid.sz-s { grid-template-columns: repeat(8,1fr); }
+    .rv-grid.sz-m { grid-template-columns: repeat(5,1fr); }
+    .rv-grid.sz-l { grid-template-columns: repeat(3,1fr); }
+    .grid-item { aspect-ratio: 1; border-radius: 4px; overflow: hidden; position: relative; background: #1a1a18; border: 2px solid transparent; transition: border-color 0.12s; cursor: pointer; }
+    .grid-item img, .grid-item canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .grid-item.selected { border-color: #5a9cf8; }
+    .grid-item.selected::after { content: ''; position: absolute; inset: 0; background: rgba(90,156,248,0.16); pointer-events: none; }
+    .grid-check { position: absolute; top: 4px; right: 4px; width: 17px; height: 17px; border-radius: 50%; background: #5a9cf8; display: none; align-items: center; justify-content: center; z-index: 2; }
+    .grid-check > * { pointer-events: none; }
+    .grid-item.selected .grid-check { display: flex; }
+    .grid-vid-icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; opacity: 0.75; }
+    .grid-name-bar { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); display: flex; align-items: center; padding: 3px 5px; gap: 2px; z-index: 3; opacity: 0; transition: opacity 0.18s; }
+    .grid-item:hover .grid-name-bar, .grid-item.selected .grid-name-bar { opacity: 1; }
+    .grid-name-input { flex: 1; background: transparent; border: none; outline: none; font-size: 9px; color: rgba(255,255,255,0.9); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: inherit; }
+    .grid-name-ext { font-size: 9px; color: rgba(255,255,255,0.35); flex-shrink: 0; }
+
+    /* Grid delete bar — sticky at bottom of grid scroll */
+    #grid-del-bar { position: sticky; bottom: 0; left: 0; right: 0; z-index: 30; background: rgba(8,8,8,0.9); backdrop-filter: blur(14px); padding: 11px 20px; display: none; align-items: center; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,0.6); border-top: 0.5px solid rgba(255,255,255,0.07); margin-top: 8px; }
+    #grid-del-bar.show { display: flex; }
+    .grid-del-btn { background: var(--red); color: white; border: none; border-radius: 5px; padding: 6px 18px; font-size: 12px; cursor: pointer; transition: opacity 0.15s; }
+    .grid-del-btn:hover { opacity: 0.85; }
+
+    /* Bottom HUD */
+    #rv-bottom { position: absolute; bottom: 0; left: 0; right: 0; z-index: 10; background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 60%, transparent 100%); padding: 40px 20px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .rv-filename-row { display: flex; align-items: center; gap: 5px; justify-content: center; }
+    .rv-filename { font-size: 13px; color: rgba(255,255,255,0.88); padding: 4px 10px; border-radius: 6px; border: 1px solid transparent; outline: none; background: transparent; min-width: 40px; max-width: 480px; text-align: center; white-space: nowrap; transition: background 0.15s, border-color 0.15s; }
+    .rv-filename:hover { background: rgba(255,255,255,0.1); }
+    .rv-filename:focus { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.28); }
+    .rv-ext { font-size: 13px; color: rgba(255,255,255,0.28); flex-shrink: 0; }
+    .rv-hints { display: flex; justify-content: center; gap: 16px; }
+    .rv-hint { font-size: 10px; color: rgba(255,255,255,0.2); display: flex; align-items: center; gap: 3px; }
+    .rv-hint kbd { font-size: 9px; background: rgba(255,255,255,0.1); border-radius: 3px; padding: 1px 5px; color: rgba(255,255,255,0.36); font-family: inherit; }
+    .rv-timeline-wrap { width: 100%; display: flex; justify-content: center; }
+    .rv-timeline { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+    .rv-timeline::-webkit-scrollbar { display: none; }
+    .t-thumb { width: 44px; height: 44px; flex-shrink: 0; border-radius: 5px; overflow: hidden; border: 2px solid transparent; transition: border-color 0.15s, opacity 0.15s; opacity: 0.38; position: relative; background: #1a1a18; }
+    .t-thumb:hover { opacity: 0.78; }
+    .t-thumb.active { border-color: rgba(255,255,255,0.85); opacity: 1; }
+    .t-thumb img, .t-thumb canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .t-vid-badge { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.2); }
+
+    /* Video scrub bar */
+    #rv-scrub-wrap { display: none; width: 100%; max-width: 500px; align-items: center; gap: 8px; }
+    #rv-scrub-wrap.show { display: flex; }
+    #rv-scrub { flex: 1; height: 3px; appearance: none; -webkit-appearance: none; background: rgba(255,255,255,0.15); border-radius: 2px; outline: none; cursor: pointer; }
+    #rv-scrub::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: white; cursor: pointer; }
+    .rv-time { font-size: 10px; color: rgba(255,255,255,0.4); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+    /* Hover preview */
+    #hover-preview { position: fixed; z-index: 9998; pointer-events: none; opacity: 0; transition: opacity 0.18s; border-radius: 10px; overflow: hidden; box-shadow: 0 12px 44px rgba(0,0,0,0.55); border: 0.5px solid rgba(255,255,255,0.07); background: #111; }
+    #hover-preview img, #hover-preview video { width: 520px; height: 520px; object-fit: contain; display: block; background: #111; }
+
+    /* SETTINGS */
+    #settings-screen { overflow-y: auto; padding: 52px 32px 32px; }
+    #settings-screen h2 { font-size: 20px; font-weight: 600; margin-bottom: 22px; }
+    .settings-group { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 14px; }
+    .settings-group-label { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px 3px; }
+    .settings-row { display: flex; align-items: center; padding: 13px 16px; border-bottom: 0.5px solid var(--border); gap: 12px; }
+    .settings-row:last-child { border-bottom: none; }
+    .settings-row-info { flex: 1; }
+    .settings-row-title { font-size: 13px; font-weight: 500; margin-bottom: 1px; }
+    .settings-row-desc { font-size: 11px; color: var(--text2); }
+    .toggle { width: 30px; height: 17px; appearance: none; -webkit-appearance: none; background: var(--surface3); border-radius: 9px; position: relative; border: 0.5px solid var(--border2); flex-shrink: 0; transition: background 0.2s; }
+    .toggle:checked { background: var(--accent); border-color: var(--accent); }
+    .toggle::after { content: ''; position: absolute; width: 11px; height: 11px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: left 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+    .toggle:checked::after { left: 15px; }
+
+    /* TOAST */
+    #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(14px); background: rgba(18,18,16,0.92); backdrop-filter: blur(12px); color: white; padding: 9px 18px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity 0.4s, transform 0.4s; pointer-events: none; z-index: 9999; white-space: nowrap; border: 0.5px solid rgba(255,255,255,0.08); }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div id="win-controls">
+  <button class="win-btn" id="win-min"><svg width="12" height="2" viewBox="0 0 12 2" fill="none"><rect y="0.25" width="12" height="1.5" rx="0.75" fill="currentColor"/></svg></button>
+  <button class="win-btn" id="win-max"><svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="1" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/></svg></button>
+  <button class="win-btn close" id="win-close"><svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 2l7 7M9 2L2 9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
+</div>
+
+<div id="sidebar">
+  <div id="sidebar-logo">
+    <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><rect width="26" height="26" rx="7" fill="var(--accent)"/><rect x="5" y="9" width="16" height="12" rx="2" stroke="var(--accent-fg)" stroke-width="1.3" fill="none"/><path d="M5 17l4-4 3 3 3-4 4 5" stroke="var(--accent-fg)" stroke-width="1.3" stroke-linejoin="round" fill="none"/><circle cx="9.5" cy="13.5" r="1.5" fill="var(--accent-fg)"/></svg>
+    <span>PhotoSort</span>
+  </div>
+  <div id="sidebar-nav">
+    <div class="nav-label">Modes</div>
+    <button class="nav-item active" data-screen="home"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 1.5L1.5 6v7h4v-4h4v4h4V6z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></svg>Home</button>
+    <button class="nav-item" data-screen="quick"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M4 6h7M4 9h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Quick Sort</button>
+    <button class="nav-item" data-screen="catalogue"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="5" width="12" height="8.5" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M1.5 7.5h12M5.5 1.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Catalogue</button>
+    <button class="nav-item" data-screen="declutter"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="8" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="1.5" y="8" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="8" y="8" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Declutter</button>
+    <div class="nav-divider"></div>
+    <div class="nav-label">Other</div>
+    <button class="nav-item" data-screen="settings"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M7.5 1v1.5M7.5 12.5V14M1 7.5h1.5M12.5 7.5H14M2.6 2.6l1.1 1.1M11.3 11.3l1.1 1.1M2.6 12.4l1.1-1.1M11.3 3.7l1.1-1.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Settings</button>
+  </div>
+</div>
+
+<div id="content">
+  <div id="drag-bar"></div>
+
+  <!-- HOME -->
+  <div id="home-screen" class="screen active">
+    <h1>What do you want to do?</h1>
+    <p>Choose a mode to get started.</p>
+    <div id="home-cards">
+      <div class="home-card" data-goto="quick"><div class="home-card-icon" style="background:#e8f4e8"><svg width="22" height="22" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="#2d6e2d" stroke-width="1.4" fill="none"/><path d="M5 8h10M5 12h6" stroke="#2d6e2d" stroke-width="1.4" stroke-linecap="round"/></svg></div><h2>Quick Sort</h2><p>Sort a messy folder into years, screenshots and videos automatically.</p></div>
+      <div class="home-card" data-goto="catalogue"><div class="home-card-icon" style="background:#e8f0fc"><svg width="22" height="22" viewBox="0 0 20 20" fill="none"><rect x="2" y="7" width="16" height="11" rx="2" stroke="#3b7fe8" stroke-width="1.4" fill="none"/><path d="M2 10h16M7 2h6" stroke="#3b7fe8" stroke-width="1.4" stroke-linecap="round"/></svg></div><h2>Catalogue</h2><p>Rename by date, then review and describe your photos one by one.</p></div>
+      <div class="home-card" data-goto="declutter"><div class="home-card-icon" style="background:#fdf0d8"><svg width="22" height="22" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="7" height="7" rx="1.5" stroke="#8a5c00" stroke-width="1.4" fill="none"/><rect x="11" y="2" width="7" height="7" rx="1.5" stroke="#8a5c00" stroke-width="1.4" fill="none"/><rect x="2" y="11" width="7" height="7" rx="1.5" stroke="#8a5c00" stroke-width="1.4" fill="none"/><rect x="11" y="11" width="7" height="7" rx="1.5" stroke="#8a5c00" stroke-width="1.4" fill="none"/></svg></div><h2>Declutter</h2><p>Open any folder and go through files to keep or delete.</p></div>
+    </div>
+  </div>
+
+  <!-- QUICK SORT -->
+  <div id="quick-screen" class="screen sort-screen">
+    <div class="dz-wrap" id="quick-dz-wrap">
+      <h2 class="sort-title">Quick Sort</h2>
+      <div class="drop-zone" id="dz-quick"><svg class="dz-icon" width="36" height="36" viewBox="0 0 36 36" fill="none"><rect x="4" y="8" width="28" height="22" rx="3" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M4 24l7-7 5 5 5-6 7 8" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/><circle cx="12" cy="15" r="2.5" fill="currentColor"/></svg><div class="dz-title">Drop a folder here</div><div class="dz-sub">or <span class="link" id="quick-browse">browse for a folder</span></div></div>
+    </div>
+    <div class="sort-content" id="quick-content">
+      <div class="sort-content-title">Quick Sort</div>
+      <div class="stats-row hidden" id="quick-stats"><div class="stat-card"><div class="stat-label">Total</div><div class="stat-val" id="qs-total"></div></div><div class="stat-card"><div class="stat-label">Photos</div><div class="stat-val" id="qs-photos"></div></div><div class="stat-card"><div class="stat-label">Videos</div><div class="stat-val" id="qs-videos"></div></div><div class="stat-card"><div class="stat-label">Screenshots</div><div class="stat-val" id="qs-shots"></div></div><div class="stat-card"><div class="stat-label">Review</div><div class="stat-val" id="qs-review"></div></div></div>
+      <div class="analyzing-wrap" id="quick-analyzing"><div id="quick-al-label">Analyzing...</div><div class="analyzing-bar-bg"><div class="analyzing-bar" id="quick-al-bar"></div></div></div>
+      <div class="file-list-wrap hidden post-analyze" id="quick-list"><div class="list-header"><span>Original</span><span>New name</span><span>Destination</span><span>Type</span></div><div class="list-scroll"><div id="quick-list-body"></div></div></div>
+      <div class="output-row hidden post-analyze" id="quick-out-row"><div class="output-path" id="quick-out-path"></div><button class="btn-sm" id="quick-out-btn">Change output</button></div>
+      <div class="sort-actions post-analyze" id="quick-actions">
+        <button class="btn-primary" id="quick-sort-btn" disabled>Sort files</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CATALOGUE -->
+  <div id="catalogue-screen" class="screen sort-screen">
+    <div class="dz-wrap" id="cat-dz-wrap">
+      <h2 class="sort-title">Catalogue</h2>
+      <div class="drop-zone" id="dz-cat"><svg class="dz-icon" width="36" height="36" viewBox="0 0 36 36" fill="none"><rect x="4" y="8" width="28" height="22" rx="3" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M4 24l7-7 5 5 5-6 7 8" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/><circle cx="12" cy="15" r="2.5" fill="currentColor"/></svg><div class="dz-title">Drop a folder to catalogue</div><div class="dz-sub">or <span class="link" id="cat-browse">browse for a folder</span></div></div>
+    </div>
+    <div class="sort-content" id="cat-content">
+      <div class="sort-content-title">Catalogue — Step 1: Rename</div>
+      <div class="stats-row hidden" id="cat-stats"><div class="stat-card"><div class="stat-label">Total</div><div class="stat-val" id="as-total"></div></div><div class="stat-card"><div class="stat-label">Photos</div><div class="stat-val" id="as-photos"></div></div><div class="stat-card"><div class="stat-label">Videos</div><div class="stat-val" id="as-videos"></div></div><div class="stat-card"><div class="stat-label">Screenshots</div><div class="stat-val" id="as-shots"></div></div><div class="stat-card"><div class="stat-label">Review</div><div class="stat-val" id="as-review"></div></div></div>
+      <div class="analyzing-wrap" id="cat-analyzing"><div id="cat-al-label">Analyzing...</div><div class="analyzing-bar-bg"><div class="analyzing-bar" id="cat-al-bar"></div></div></div>
+      <div class="file-list-wrap hidden post-analyze" id="cat-list"><div class="list-header"><span>Original</span><span>New name</span><span>Destination</span><span>Type</span></div><div class="list-scroll"><div id="cat-list-body"></div></div></div>
+      <div class="output-row hidden post-analyze" id="cat-out-row"><div class="output-path" id="cat-out-path"></div><button class="btn-sm" id="cat-out-btn">Change output</button></div>
+      <div class="output-row hidden post-analyze" id="cat-format-row"><div class="output-path" style="display:flex;align-items:center;gap:10px;white-space:normal">Rename format<select id="catalogue-format" class="btn-sm" style="min-width:220px"><option value="YYYY-MM-DD HH.MM.SS">YYYY-MM-DD HH.MM.SS</option><option value="YYYY-MM-DD HH-MM-SS">YYYY-MM-DD HH-MM-SS</option><option value="YYYYMMDD_HHMMSS">YYYYMMDD_HHMMSS</option><option value="YYYY.MM.DD HH.MM.SS">YYYY.MM.DD HH.MM.SS</option></select></div></div>
+      <div class="sort-actions post-analyze" id="cat-actions">
+        <span class="sort-done-label" id="cat-done-label"></span>
+        <button class="btn-primary" id="cat-rename-btn" disabled>Rename files</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOLDER PICKER -->
+  <div id="folder-picker-screen" class="screen">
+    <div class="fp-inner">
+      <h2 id="fp-title">Choose a folder to review</h2>
+      <p id="fp-desc">Pick a subfolder to start reviewing.</p>
+      <div id="folder-list"></div>
+      <button class="btn-sm" id="fp-back-btn">← Back</button>
+    </div>
+  </div>
+
+  <!-- REVIEW — .screen with display:block override, children absolutely positioned -->
+  <div id="review-screen" class="screen">
+    <div id="rv-topbar">
+      <button class="rv-btn" id="rv-back-btn">← Back</button>
+      <span class="rv-label" id="rv-folder-label"></span>
+      <span class="rv-spacer"></span>
+      <span class="rv-counter" id="rv-counter"></span>
+      <div class="rv-size-btns hidden" id="rv-size-btns">
+        <button class="rv-size-btn active" data-size="s">S</button>
+        <button class="rv-size-btn" data-size="m">M</button>
+        <button class="rv-size-btn" data-size="l">L</button>
+      </div>
+      <button class="rv-btn" id="rv-view-single">Single</button>
+      <button class="rv-btn" id="rv-view-grid">Grid</button>
+    </div>
+    <div id="rv-single-wrap">
+      <img id="rv-img" alt="">
+      <video id="rv-vid" autoplay playsinline></video>
+      <div id="rv-bottom">
+        <div class="rv-filename-row" id="rv-filename-row">
+          <div class="rv-filename" id="rv-filename" contenteditable="true" spellcheck="false"></div>
+          <span class="rv-ext" id="rv-ext"></span>
+        </div>
+        <div id="rv-scrub-wrap">
+          <span class="rv-time" id="rv-time-cur">0:00</span>
+          <input type="range" id="rv-scrub" min="0" max="100" value="0" step="0.1">
+          <span class="rv-time" id="rv-time-dur">0:00</span>
+        </div>
+        <div class="rv-hints">
+          <span class="rv-hint"><kbd>←</kbd><kbd>→</kbd> navigate</span>
+          <span class="rv-hint"><kbd>Space</kbd> play/pause</span>
+          <span class="rv-hint"><kbd>Enter</kbd> save</span>
+          <span class="rv-hint"><kbd>Del</kbd> delete</span>
+        </div>
+        <div class="rv-timeline-wrap"><div class="rv-timeline" id="rv-timeline"></div></div>
+      </div>
+    </div>
+    <button id="rv-nav-l"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button id="rv-nav-r"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div id="rv-grid-wrap"><div class="rv-grid sz-s" id="rv-grid"></div><div id="grid-del-bar"><span id="grid-sel-count">0 selected</span><button class="grid-del-btn" id="grid-del-btn">Delete selected</button></div></div>
+  </div>
+
+  <!-- DECLUTTER -->
+  <div id="declutter-screen" class="screen sort-screen">
+    <div class="dz-wrap" id="declutter-dz-wrap">
+      <h2 class="sort-title">Declutter</h2>
+      <div class="drop-zone" id="dz-declutter"><svg class="dz-icon" width="36" height="36" viewBox="0 0 36 36" fill="none"><rect x="4" y="8" width="28" height="22" rx="3" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M4 24l7-7 5 5 5-6 7 8" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/><circle cx="12" cy="15" r="2.5" fill="currentColor"/></svg><div class="dz-title">Drop a folder to declutter</div><div class="dz-sub">or <span class="link" id="declutter-browse">browse for a folder</span></div></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="settings-screen" class="screen" style="overflow-y:auto;padding:52px 32px 32px">
+    <h2 style="font-size:20px;font-weight:600;margin-bottom:22px">Settings</h2>
+    <div class="settings-group"><div class="settings-group-label">Appearance</div><div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Dark mode</div><div class="settings-row-desc">Switch to a dark colour scheme</div></div><input type="checkbox" class="toggle" id="setting-dark-mode"></div></div>
+    <div class="settings-group"><div class="settings-group-label">Quick Sort</div><div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Move files by default</div><div class="settings-row-desc">Delete originals after sorting instead of copying</div></div><input type="checkbox" class="toggle" id="setting-default-move"></div></div>
+    <div class="settings-group"><div class="settings-group-label">Review &amp; Declutter</div><div class="settings-row"><div class="settings-row-info"><div class="settings-row-title">Confirm before deleting</div><div class="settings-row-desc">Show a confirmation before permanently deleting</div></div><input type="checkbox" class="toggle" id="setting-confirm-delete" checked></div></div>
+  </div>
+
+</div>
+
+<div id="hover-preview"><img id="hover-preview-img" alt="" style="display:none"><video id="hover-preview-vid" muted autoplay loop style="display:none"></video></div>
+<div id="toast"><span id="toast-msg"></span></div>
+<script src="renderer.js"></script>
+</body>
+</html>
